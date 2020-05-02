@@ -1,6 +1,7 @@
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{BooleanType, DateType, IntegerType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
+import DataManipulations._
 
 object Main {
 
@@ -27,7 +28,7 @@ object Main {
      */
     val spark = SparkSession.builder()
       .appName("spark-project")
-      //.config("spark.master", "local")
+      .config("spark.master", "local")
       .getOrCreate()
 
     /**
@@ -76,14 +77,17 @@ object Main {
     val countriesDF = spark.read
       .option("header", "true")
       .schema(countriesSchema)
-      .csv("s3n://spark-project-test/twitter-data/Countries.CSV")
+      .csv("src/main/resources/data/Countries.csv")
+      //.csv("s3n://spark-project-test/twitter-data/Countries.CSV")
 
 
     val tweetsDF = spark.read
       .option("header", "true")
       .schema(tweetsSchema)
       .option("dateFormat", "yyyy-MM-dd'T'HH:mm:ss'Z'")
-      .csv("s3n://spark-project-test/twitter-data/2020*.CSV")
+      //.csv("src/main/resources/data/2020*.csv")
+      //.csv("s3n://spark-project-test/twitter-data/2020*.CSV")
+      .csv("src/main/resources/data/2020-03-12_Covid_Tweets.csv")
       .select(
         "user_id",
         "screen_name",
@@ -98,8 +102,6 @@ object Main {
         "text",
         "lang"
       )
-
-
 
     val cleanDF = tweetsDF
       .where(col("text").isNotNull
@@ -118,13 +120,14 @@ object Main {
       approx_count_distinct("text").as("nTweets")
     ).orderBy(desc("nTweets")).show
 
-
     tweetsDF.sort(desc("followers_count")).limit(20).show()
 
     cleanDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("retweet_count")).show
+    cleanDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("favourites_count")).show
 
     val tweetsRDD = cleanDF.as[Tweet].rdd
 
-    tweetsRDD.toDF.show()
+    val withSentimentRDD = withSentiment(tweetsRDD)
+    withSentimentRDD.toDF.show()
   }
 }
