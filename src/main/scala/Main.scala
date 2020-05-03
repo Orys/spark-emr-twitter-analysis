@@ -105,17 +105,44 @@ object Main {
         "created_at",
         "text",
         "lang"
-      )
+      )where(col("text").isNotNull
+      and col("created_at").isNotNull
+      and col("country_code").isNull)
 
-    tweetsDF.where(col("lang") === "en").sort(desc("followers_count")).show()
+    /**
+     * How many tweets in english?
+     * */
 
-    // Who are the most followed?
+    val enTweetsDF = tweetsDF.where(col("lang") === "en")
+      .sort(desc("followers_count"))
+
+    println("Tweets in english - Size: " + enTweetsDF.count())
+    enTweetsDF.show()
+
+
+    /**
+     * Who are the most followed?
+     * */
+
     val mostFollowedDF = tweetsDF.groupBy("screen_name")
       .agg(max("followers_count").as("followers"))
       .sort(desc("followers"))
 
     println("Most followed users in full dataset - Size: " + mostFollowedDF.count())
     mostFollowedDF.show()
+
+    /**
+     * How many profiles have lang null and country null
+     * */
+
+    val nullUsers = tweetsDF.where(col("country_code").isNull
+      and col("lang") === "en")
+      .groupBy("screen_name")
+      .agg(max("followers_count").as("nFollowers"))
+      .sort(desc("nFollowers"))
+
+    println("Users without lang - Size: " + nullUsers.count())// + " - tot tweets: " + nullUsers.agg(sum("nTweets")).first.get(0))
+    nullUsers.show()
 
 
     val cleanDF = tweetsDF
@@ -166,8 +193,8 @@ object Main {
     val tweetsRDD = cleanDF.as[Tweet].rdd
     println("Partitions: " + tweetsRDD.getNumPartitions)
 
-    val withSentimentRDD = withSentiment(tweetsRDD)
-    withSentimentRDD.take(10).foreach(println)
+    //val withSentimentRDD = withSentiment(tweetsRDD)
+    //withSentimentRDD.take(10).foreach(println)
 
 
     /*
@@ -182,9 +209,9 @@ object Main {
     resultRDD.take(10).foreach(println)
     */
 
-    val sortedWithSentiment = withSentimentRDD.toDF().sort(desc("followers_count"))
-    sortedWithSentiment.take(20).foreach(println)
-    sortedWithSentiment.show()
+    //val sortedWithSentiment = withSentimentRDD.toDF().sort(desc("followers_count"))
+    //sortedWithSentiment.take(20).foreach(println)
+    //sortedWithSentiment.show()
 
   }
 }
