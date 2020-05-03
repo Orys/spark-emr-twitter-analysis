@@ -44,12 +44,14 @@ object DataManipulations {
   /****************************************************************************/
 
   // add sentiment to data
-  case class WithSentiment (user_id: String, name: String, country: String, source: String,
+  case class WithSentiment (user_id: String, name: String, text: String, created_at: String,  country: String, source: String,
                             followers_count: Int, favourites_count: Int, retweet_count: Int, sentiment: Int)
   def withSentiment (dataRDD: RDD[Tweet]): RDD[WithSentiment] = dataRDD.map(
     tweet => WithSentiment(
       tweet.user_id,
       tweet.screen_name,
+      tweet.text,
+      tweet.created_at,
       tweet.country,
       tweet.source,
       tweet.followers_count,
