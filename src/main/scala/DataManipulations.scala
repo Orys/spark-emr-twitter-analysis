@@ -3,22 +3,25 @@ import org.apache.spark.rdd.RDD
 
 object DataManipulations {
 
+  val increaseCounter: (Int, Tweet) => Int = (n: Int, tweet: Tweet) => n+1
+  val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
+
   // name, number of tweets, followers and friends
   case class NamesNTweetsFollowersFriends(screen_name: String, country: String, tweets: Int, followers: Int, friends: Int)
 
-  def namesNTweetsFollowersFriends (dataRDD: RDD[Tweet]): RDD[NamesNTweetsFollowersFriends] =
+  def namesNTweetsFollowersFriends: RDD[Tweet] => RDD[NamesNTweetsFollowersFriends] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.screen_name).map {
     case (screen_name, tweets) => NamesNTweetsFollowersFriends(
       screen_name, tweets.map(_.country).head,
       tweets.size, tweets.map(_.followers_count).max,
       tweets.map(_.friends_count).max
     )
-  }.sortBy(_.tweets, false)
+  }.sortBy(_.tweets, ascending = false)
 
   // source and average of words in tweets
   case class SourceAvgWords(source: String, tweets: Int, words: Int)
 
-  def sourceAvgWords (dataRDD: RDD[Tweet]): RDD[SourceAvgWords] =
+  def sourceAvgWords: RDD[Tweet] => RDD[SourceAvgWords] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.source).map {
       case (source, tweets) => SourceAvgWords(
       source,
@@ -30,7 +33,7 @@ object DataManipulations {
   // date and number of tweets
   case class DateNTweets(date: String, nTweets: Int)
 
-  def dateNTweets(dataRDD: RDD[Tweet]): RDD[DateNTweets] =
+  def dateNTweets: RDD[Tweet] => RDD[DateNTweets] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.created_at).map {
       case (date, tweets) => DateNTweets(
         date,
@@ -46,7 +49,7 @@ object DataManipulations {
   // get countries with respective average sentiment
   case class CountryAvgSentiment (country: String, avgSentiment: Int)
 
-  def countryAvgSentiment (dataRDD: RDD[Tweet]): RDD[CountryAvgSentiment] =
+  def countryAvgSentiment: RDD[Tweet] => RDD[CountryAvgSentiment] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.country).map{
       case (country_code, withSentiments) => CountryAvgSentiment(
         country_code,
@@ -57,7 +60,7 @@ object DataManipulations {
   // sentiments with respective ratios favourites/followers and retweets/followers
   case class SentimentFavouritesRetweetsRatios (sentiment: Int, r_follow_fav: Double, r_follow_retweet: Double)
 
-  def sentimentFavouritesRetweetsRatios(dataRDD: RDD[Tweet]): RDD[SentimentFavouritesRetweetsRatios] =
+  def sentimentFavouritesRetweetsRatios: RDD[Tweet] => RDD[SentimentFavouritesRetweetsRatios] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.sentiment).map{
       case (sentiment, tweets) => SentimentFavouritesRetweetsRatios(
         sentiment,
@@ -70,7 +73,7 @@ object DataManipulations {
   // average sentiment for each day (created_at)
   case class AvgSentimentDate (date: String, avgSentiment: Int)
 
-  def avgSentimentDate(dataRDD: RDD[Tweet]): RDD[AvgSentimentDate] =
+  def avgSentimentDate: RDD[Tweet] => RDD[AvgSentimentDate] = (dataRDD: RDD[Tweet]) =>
     dataRDD.groupBy(_.created_at).map{
       case (date, tweets) => AvgSentimentDate(
         date,
@@ -82,24 +85,20 @@ object DataManipulations {
   // sentiment with respective number of tweets for each day (created_at)
   case class SentimentNTweetsDate (date: String, sentiment: Int, nTweets: Int)
 
-  def sentimentNTweetsDate(dataRDD: RDD[Tweet]): RDD[SentimentNTweetsDate] =
-    dataRDD.groupBy(tweet => (tweet.sentiment, tweet.created_at)).map{
-      case ((sentiment, created_at), tweets) => SentimentNTweetsDate(
-        created_at,
-        sentiment,
-        tweets.size
-      )
-    }.sortBy(row => (row.date, row.sentiment))
+  def sentimentNTweetsDate: RDD[Tweet] => RDD[SentimentNTweetsDate] = (dataRDD: RDD[Tweet]) => {
+    val result = dataRDD.map(tweet => ((tweet.created_at, tweet.sentiment), tweet))
+      .aggregateByKey(0)(increaseCounter, sumPartitions)
+    result.map(row => SentimentNTweetsDate(row._1._1, row._1._2, row._2))
+  }.sortBy(row => (row.date, row.sentiment))
+
 
   // sentiment with respective number of tweets for each day (created_at)
   case class SentimentNTweets (sentiment: Int, nTweets: Int)
 
-  def sentimentNTweets(dataRDD: RDD[Tweet]): RDD[SentimentNTweets] =
-    dataRDD.groupBy(_.sentiment).map{
-      case (sentiment, tweets) => SentimentNTweets(
-        sentiment,
-        tweets.size
-      )
-    }.sortBy(_.sentiment)
+  def sentimentNTweets: RDD[Tweet] => RDD[SentimentNTweets] = (dataRDD: RDD[Tweet]) =>{
+    val result = dataRDD.map(tweet => (tweet.sentiment, tweet))
+      .aggregateByKey(0)(increaseCounter, sumPartitions)
+    result.map(row => SentimentNTweets(row._1, row._2))
+  }.sortBy(_.nTweets)
 
 }

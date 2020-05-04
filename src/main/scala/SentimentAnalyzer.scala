@@ -96,10 +96,10 @@ object SentimentAnalyzer {
       //.csv("src/main/resources/data/2020-03-00_Covid_Tweets.csv")
       .where(
         col("text").isNotNull
-        and col("lang") === "en"
-        and col("country_code") === "US"
-        and col("created_at").isNotNull
-      )//.limit(100)
+        //and col("lang") === "en"
+        //and col("country_code") === "US"
+        //and col("created_at").isNotNull
+      ).limit(1000)
 
     println("Rows in dataset: " + tweetsDF.count())
     tweetsDF.show()
@@ -187,7 +187,7 @@ object SentimentAnalyzer {
 
   private def extractSentiment(text: String): Int = {
     val sentiments = extractSentiments(text)
-    if (sentiments.isEmpty) 2
+    if (sentiments.isEmpty) -1
     else {
       val (_, sentiment) = extractSentiments(text)
         .maxBy { case (sentence, _) => sentence.length }

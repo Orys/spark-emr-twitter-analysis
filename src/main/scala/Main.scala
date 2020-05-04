@@ -108,18 +108,19 @@ object Main {
         "sentiment"
       )
     //tweetsDF.printSchema()
+
     println("Rows in dataset: " + tweetsDF.count())
     tweetsDF.show()
 
 
     // clean DataFrame
     val cleanDF = tweetsDF
-      .where(col("lang") === "en"
-        and col("country_code") === "US"
-        and col("created_at").isNotNull
-        and col("followers_count").isNotNull
-        and col("favourites_count").isNotNull
-        and col("retweet_count").isNotNull
+      .where(col("lang") === "en" and
+        col("country_code") === "US" and
+        col("created_at").isNotNull and
+        col("followers_count").isNotNull and
+        col("favourites_count").isNotNull and
+        col("retweet_count").isNotNull
       )
       // change country_code with country by joining tweets and countries DataFrames
       .join(countriesDF, tweetsDF.col("country_code") === countriesDF.col("country_code")).drop("country_code").cache()
