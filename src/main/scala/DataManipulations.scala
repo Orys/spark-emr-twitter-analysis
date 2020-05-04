@@ -1,4 +1,4 @@
-import Main.Tweet
+import Main._
 import org.apache.spark.rdd.RDD
 
 object DataManipulations {
@@ -13,7 +13,7 @@ object DataManipulations {
       tweets.size, tweets.map(_.followers_count).max,
       tweets.map(_.friends_count).max
     )
-  }.sortBy(_.tweets, false)
+  }.sortBy(_.tweets, ascending = false)
 
   // source and average of words in tweets
   case class SourceAvgWords(source: String, tweets: Int, words: Int)
