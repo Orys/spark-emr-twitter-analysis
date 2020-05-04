@@ -19,7 +19,8 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion,
   "org.apache.spark" %% "spark-sql" % sparkVersion,
   "edu.stanford.nlp" % "stanford-corenlp" % "3.4",
-  "edu.stanford.nlp" % "stanford-corenlp" % "3.4" classifier "models",
+  // "edu.stanford.nlp" % "stanford-corenlp" % "3.4" classifier "models",
+  "edu.stanford.nlp" % "stanford-corenlp" % "3.8.0" classifier "models-english",
   "edu.stanford.nlp" % "stanford-parser" % "3.4"
 
   // logging
