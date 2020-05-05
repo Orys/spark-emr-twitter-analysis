@@ -200,6 +200,10 @@ object Main {
 
      */
 
+    // utils functions for counting in aggregations
+    val increaseCounter: (Int, WithSentiment) => Int = (n: Int, tweet: WithSentiment) => n+1
+    val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
+
     /**
      * TODO 1. Tweets per day, ordered by date
      */
@@ -207,13 +211,12 @@ object Main {
     /**
      * TODO 2. Most popular tweets
      */
+    dataRDD.sortBy(_.retweet_count).toDF.show()
+
 
     /**
      * 3. Most active users in the period
      */
-
-    val increaseCounter: (Int, WithSentiment) => Int = (n: Int, tweet: WithSentiment) => n+1
-    val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
 
     val getLatestTweet: (WithSentiment, WithSentiment) => WithSentiment = (t1: WithSentiment, t2: WithSentiment) =>
       if (t1.created_at > t2.created_at) t1 else t2
