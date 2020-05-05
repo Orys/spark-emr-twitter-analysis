@@ -29,7 +29,6 @@ object Playground extends App {
     )
   )
   val dataRDD = spark.read.schema(sentimentSchema).option("header", "true").csv(sentimentPath).as[WithSentiment].rdd
-  val stopwordsRDD = sc.textFile("src/main/resources/stopwords.txt").collect.toList
 
 
 
