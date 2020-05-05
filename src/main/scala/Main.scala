@@ -8,19 +8,28 @@ import org.apache.spark.sql.{SaveMode, SparkSession}
 object Main {
 
   // define case class for data
+  case class WithSentiment(
+                            status_id: String,
+                            user_id: String,
+                            created_at: String,
+                            screen_name: String,
+                            text: String,
+                            sentiment: Int,
+                            followers_count: Int,
+                            favourites_count: Int,
+                            retweet_count: Int
+                          )
+
   case class Tweet(
+                    status_id: String,
                     user_id: String,
+                    created_at: String,
                     screen_name: String,
-                    sentiment: Int,
-                      //verified: Boolean,
-                    country_code: String,
-                    source: String,
+                    text: String,
                     followers_count: Int,
-                    friends_count: Int,
                     favourites_count: Int,
                     retweet_count: Int,
-                    created_at: String,
-                    text: String,
+                    country_code: String,
                     lang: String
                   )
 
@@ -47,17 +56,6 @@ object Main {
     /**
      * Schemas
      */
-
-      /*
-
-    // defining the countries schema
-    val countriesSchema = StructType(
-      Array(
-        StructField("country", StringType),
-        StructField("country_code", StringType)
-      )
-    )
-       */
 
     val sentimentSchema = StructType(
       Array(
@@ -106,19 +104,6 @@ object Main {
         StructField("lang", StringType)
       )
     )
-
-    /**
-     * Read data files and create DataFrames
-     */
-
-      /*
-          // read countries data as DataFrame
-      val countriesDF = spark.read
-      .option("header", "true")
-      .schema(countriesSchema)
-      .csv("src/main/resources/data/Countries.csv")
-      //.csv("s3n://spark-project-test/twitter-data/Countries.CSV")
-       */
 
     /**
      * Sentiment Analysis
