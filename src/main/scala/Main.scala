@@ -1,3 +1,4 @@
+import Playground.{dataRDD, stopwordsRDD}
 import SentimentAnalyzer._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
@@ -207,7 +208,7 @@ object Main {
     val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
 
     /**
-     * TODO 1. Tweets per day, ordered by date
+     * 1. Tweets per day, ordered by date
      */
     val tweetsPerDay = dataRDD.map(tweet => (tweet.created_at, (1, tweet.sentiment)))
       .reduceByKey((v1, v2) => (v1._1 + v2._1, v1._2 + v2._2))
@@ -217,7 +218,7 @@ object Main {
     tweetsPerDay.toDF.show()
 
     /**
-     * TODO 2. Most popular tweets
+     * 2. Most popular tweets
      */
     dataRDD.sortBy(_.retweet_count).toDF.show()
 
@@ -241,43 +242,60 @@ object Main {
         )
       ).sortBy(_.nTweets, ascending =false).toDF.show()
 
+    /**
+     * 4. Most common words in tweets [WordCount]
+     */
 
-      /*
-            .map(row => MostActiveUsers(
-              row._1,
-              row._2._2.screen_name,
-              row._2._2.country,
-              row.
-            ))
-       */
+    val wordsRDD = dataRDD.map(_.text.toLowerCase())
+      .flatMap(_.split(" "))
+      .map(word => (word.replaceAll("[^a-zA-Z#@0-9]", ""), 1))
+      .reduceByKey((w1,w2) => w1+w2)
+      .filter(row => !stopwordsRDD.contains(row._1))
+      .sortBy(_._2, ascending = false)
 
+    val noHashtagsAndTagsRDD = wordsRDD.filter(!_._1.startsWith("#")).filter(!_._1.startsWith("@"))
+    noHashtagsAndTagsRDD.toDF.show()
 
+    /**
+     * 5. Most used hashtags
+     * */
+    val hashtagsRDD = wordsRDD
+      .filter(_._1.startsWith("#"))
+    hashtagsRDD.toDF.show()
 
-    /*
-      dataRDD.groupBy(_.screen_name).map {
-        case (screen_name, tweets) => NamesNTweetsFollowersFriends(
-          screen_name, tweets.map(_.country).head,
-          tweets.size, tweets.map(_.followers_count).max,
-          tweets.map(_.friends_count).max
-        )
-      }.sortBy(_.tweets, ascending = false)
+    /**
+     * 6. Most used tags
+     * */
+    val tagsRDD = wordsRDD
+      .filter(_._1.startsWith("@"))
+    tagsRDD.toDF.show()
 
+    /**
+     * 7. Most used hashtag per day
+     */
+
+    case class HashtagOfTheDay(date: String, hashtag: String, nTweets: Int)
+    val hashtagOfTheDayRDD = dataRDD.map(tweet => (tweet.created_at, tweet.text))
+      .flatMapValues(text => text.split(" "))
+      .filter(_._2.startsWith("#"))
+      .map(row => ((row._1, row._2), 1))
+      .reduceByKey(_+_)
+      .map(row => (row._1._1, (row._1._2, row._2)))
+      .reduceByKey((el1, el2) => if (el1._2>el2._2) el1 else el2)
+      .sortByKey(ascending = true)
+      .map(row => HashtagOfTheDay(row._1, row._2._1, row._2._2))
+    hashtagOfTheDayRDD.toDF.show
+
+    /**
+     * TODO Average sentiment per day, ordered by sentiment
      */
 
     /**
-     * TODO 4. Most common words in tweets [WordCount]
+     * TODO Most negative users, ordered by followers_count and number of tweets
      */
 
     /**
-     * TODO 5. Average sentiment per day, ordered by sentiment
-     */
-
-    /**
-     * TODO 6. Most negative users, ordered by followers_count and number of tweets
-     */
-
-    /**
-     * TODO 7. Most positive users, ordered by followers_count and number of tweets
+     * TODO Most positive users, ordered by followers_count and number of tweets
      */
 
     /**
