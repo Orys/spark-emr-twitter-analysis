@@ -1,13 +1,11 @@
 import java.util.Properties
 
+import Main.{Tweet, WithSentiment}
 import edu.stanford.nlp.ling.CoreAnnotations
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations
 import edu.stanford.nlp.pipeline.{Annotation, StanfordCoreNLP}
 import edu.stanford.nlp.sentiment.SentimentCoreAnnotations
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SparkSession}
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types._
 
 import scala.collection.convert.wrapAll._
 
@@ -26,15 +24,19 @@ object SentimentAnalyzer {
    * add column with Sentiment Analysis results to data
    */
 
-  case class WithSentiment(status_id: String, sentiment: Int)
-
-  def withSentiment(dataRDD: RDD[IDText]): RDD[WithSentiment] = dataRDD.map(
+  def withSentiment(dataRDD: RDD[Tweet]): RDD[WithSentiment] = dataRDD.map(
     tweet => WithSentiment(
       tweet.status_id,
+      tweet.user_id,
+      tweet.created_at,
+      tweet.screen_name,
+      tweet.text,
+      tweet.followers_count,
+      tweet.favourites_count,
+      tweet.retweet_count,
       mainSentiment(tweet.text)
     )
   )
-
 
   /**
    * Extracts the main sentiment for a given input

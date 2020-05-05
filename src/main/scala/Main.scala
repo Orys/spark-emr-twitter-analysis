@@ -1,8 +1,8 @@
 import SentimentAnalyzer._
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{SaveMode, SparkSession}
 
 
 object Main {
@@ -14,10 +14,10 @@ object Main {
                             created_at: String,
                             screen_name: String,
                             text: String,
-                            sentiment: Int,
                             followers_count: Int,
                             favourites_count: Int,
-                            retweet_count: Int
+                            retweet_count: Int,
+                            sentiment: Int
                           )
 
   case class Tweet(
@@ -60,20 +60,15 @@ object Main {
     val sentimentSchema = StructType(
       Array(
         StructField("status_id", StringType),
-        StructField("sentiment", IntegerType, nullable = true),
         StructField("user_id", StringType),
         StructField("created_at", DateType, nullable = true),
         StructField("screen_name", StringType),
         StructField("text", StringType),
-        StructField("source", StringType),
-        StructField("is_quote", BooleanType, nullable = true),
-        StructField("is_retweet", BooleanType, nullable = true),
         StructField("followers_count", IntegerType, nullable = true),
-        StructField("friends_count", IntegerType, nullable = true),
         StructField("favourites_count", IntegerType, nullable = true),
         StructField("retweet_count", IntegerType, nullable = true),
-        StructField("country_code", StringType),
-        StructField("lang", StringType)
+        StructField("sentiment", IntegerType, nullable = true)
+
       )
     )
 
@@ -105,27 +100,22 @@ object Main {
       )
     )
 
-    /**
-     * Sentiment Analysis
-     */
-
     import spark.implicits._
 
     // Create FileSystem object from Hadoop Configuration
     val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
     // sentiment dataset path
         //val sentimentPath = "s3n://spark-project-test/twitter-data/Sentiment_Data.parquet"
-    val sentimentPath = "src/main/resources/data/Sentiment_Data.parquet"
+    val sentimentPath = "src/main/resources/data/Sentiment_Data.csv"
     // This methods returns Boolean (true - if file exists, false - if file doesn't exist
     val fileExists = fs.exists(new Path(sentimentPath))
 
     val withSentimentRDD = if (fileExists)
-      spark.read.schema(sentimentSchema).parquet(sentimentPath).as[Tweet].rdd
+      spark.read.schema(sentimentSchema).option("header", "true").csv(sentimentPath).as[WithSentiment].rdd
     else {
       /**
        * Data preprocessing
        */
-
       // read tweets data as DataFrame and select useful columns
       val tweetsDF = spark.read
         .schema(tweetsSchema)
@@ -173,23 +163,23 @@ object Main {
 
         "country_code",
         "lang"
-      ).limit(1000)
+      )//.limit(1000)
 
       tweetsDF.printSchema()
       println("Rows in dataset: " + tweetsDF.count())
       tweetsDF.show()
 
-      // apply Sentiment Analysis to data
-      val sentimentDF = withSentiment(tweetsDF.select("status_id", "text").as[IDText].rdd).toDF.join(tweetsDF, "status_id")
-      sentimentDF.write.mode(SaveMode.Overwrite).save(sentimentPath)
-      sentimentDF.as[Tweet].rdd
+      /**
+       * Sentiment Analysis
+       */
+
+      val sentimentRDD = withSentiment(tweetsDF.as[Tweet].rdd)
+      sentimentRDD.toDF.write.option("header", "true").csv(sentimentPath)
+      sentimentRDD
     }
 
-    println("Tweets with sentiment -1: " + withSentimentRDD.filter(_.sentiment == -1).count())
-    println("Tweets with null lang: " + withSentimentRDD.filter(_.lang == null).count())
-    println("Tweets with null country code: " + withSentimentRDD.filter(_.country_code == null).count())
-
-    val dataRDD = withSentimentRDD.filter(_.sentiment == -1)
+    val dataRDD = withSentimentRDD.filter(_.sentiment == -1).cache()
+    println("Tweets with sentiment -1: " + dataRDD.count())
 
     println("Clean data rows: " + dataRDD.count())
     dataRDD.toDF.show()
@@ -223,6 +213,7 @@ object Main {
      * 3. Most active users in the period
      */
 
+      /*
 
     val increaseCounter: (Int, Tweet) => Int = (n: Int, tweet: Tweet) => n+1
     val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
@@ -244,6 +235,8 @@ object Main {
         )
       )
     result.toDF.show()
+
+       */
 
 
       /*
