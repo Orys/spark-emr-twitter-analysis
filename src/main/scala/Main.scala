@@ -35,6 +35,8 @@ object Main {
 
   case class MostActiveUsers(user_id: String, screen_name: String, nTweets: Int, followers: Int)
 
+  case class TweetsPerDay(created_at: String, tot_tweets: Int, avg_sentiment: Double)
+
 
   def main(args: Array[String]) {
 
@@ -200,9 +202,19 @@ object Main {
 
      */
 
+    val increaseCounter: (Int, WithSentiment) => Int = (n: Int, tweet: WithSentiment) => n+1
+    val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
+
+
     /**
      * TODO 1. Tweets per day, ordered by date
      */
+    val tweetsPerDay = dataRDD.map(tweet => (tweet.created_at, (1, tweet.sentiment)))
+      .reduceByKey((v1, v2) => (v1._1 + v2._1, v1._2 + v2._2))
+      .map(tweet => TweetsPerDay(tweet._1, tweet._2._1, tweet._2._2.toDouble / tweet._2._1))
+      .sortBy(_.created_at, ascending = true)
+
+    tweetsPerDay.toDF.show()
 
     /**
      * TODO 2. Most popular tweets
@@ -212,8 +224,6 @@ object Main {
      * 3. Most active users in the period
      */
 
-    val increaseCounter: (Int, WithSentiment) => Int = (n: Int, tweet: WithSentiment) => n+1
-    val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
 
     val getLatestTweet: (WithSentiment, WithSentiment) => WithSentiment = (t1: WithSentiment, t2: WithSentiment) =>
       if (t1.created_at > t2.created_at) t1 else t2
@@ -228,7 +238,7 @@ object Main {
         row._2._2,
         row._2._1.followers_count
         )
-      ).sortBy(_.nTweets, ascending =false).toDF.show()
+      ).sortBy(_.nTweets, ascending = false).toDF.show()
 
 
       /*
