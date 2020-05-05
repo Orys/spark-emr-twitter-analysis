@@ -1,9 +1,8 @@
-import DataManipulations._
+import SentimentAnalyzer._
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import SentimentAnalyzer._
+import org.apache.spark.sql.{SaveMode, SparkSession}
 
 
 object Main {
@@ -12,8 +11,9 @@ object Main {
   case class Tweet(
                     user_id: String,
                     screen_name: String,
-                    verified: Boolean,
-                    country: String,
+                    sentiment: Int,
+                      //verified: Boolean,
+                    country_code: String,
                     source: String,
                     followers_count: Int,
                     friends_count: Int,
@@ -21,9 +21,11 @@ object Main {
                     retweet_count: Int,
                     created_at: String,
                     text: String,
-                    lang: String,
-                    sentiment: Int
+                    lang: String
                   )
+
+  case class MostActiveUsers(user_id: String, screen_name: String, country_code: String, tweets: Int, followers: Int, friends: Int)
+
 
   def main(args: Array[String]) {
 
@@ -32,7 +34,7 @@ object Main {
      */
     val spark = SparkSession.builder()
       .appName("spark-project")
-      //.config("spark.master", "local")
+      .config("spark.master", "local")
       .getOrCreate()
 
     /**
@@ -46,6 +48,8 @@ object Main {
      * Schemas
      */
 
+      /*
+
     // defining the countries schema
     val countriesSchema = StructType(
       Array(
@@ -53,6 +57,7 @@ object Main {
         StructField("country_code", StringType)
       )
     )
+       */
 
     val sentimentSchema = StructType(
       Array(
@@ -99,7 +104,6 @@ object Main {
         StructField("account_created_at", DateType, nullable = true),
         StructField("verified", BooleanType, nullable = true),
         StructField("lang", StringType)
-        //StructField("sentiment", IntegerType, nullable = true)
       )
     )
 
@@ -107,56 +111,14 @@ object Main {
      * Read data files and create DataFrames
      */
 
-    // read countries data as DataFrame
-    val countriesDF = spark.read
+      /*
+          // read countries data as DataFrame
+      val countriesDF = spark.read
       .option("header", "true")
       .schema(countriesSchema)
-      //.csv("src/main/resources/data/Countries.CSV")
-      .csv("s3n://spark-project-test/twitter-data/Countries.CSV")
-
-    /**
-     * Data preprocessing
-     */
-
-    // read tweets data as DataFrame and select useful columns
-    val tweetsDF = spark.read
-      .schema(tweetsSchema)
-      .option("header", "true")
-      .option("dateFormat", "yyyy-MM-dd'T'HH:mm:ss'Z'")
-      .csv("s3n://spark-project-test/twitter-data/2020*.CSV")
-      //.csv("src/main/resources/data/2020-03-00_Covid_Tweets.csv")
-      .select( // Select useful columns
-        "status_id",
-        "user_id",
-        "created_at",
-        "screen_name",
-        "text",
-        "source",
-
-        "is_quote",
-        "is_retweet",
-
-        "followers_count",
-        "friends_count",
-        "favourites_count",
-        "retweet_count",
-
-        "country_code",
-        "lang"
-      ).dropDuplicates("status_id") //remove duplicate tweets
-      .where(col("text").isNotNull and
-        col("created_at").isNotNull and // remove nulls
-        col("is_quote") === "false" and // remove quotes [we only keep OC]
-        col("is_retweet") === "false" and // remove retweets
-        (col("country_code").isNull or col("country_code") === "US") and
-        (col("lang").isNull or col("lang") === "en")
-      )
-
-    tweetsDF.printSchema()
-
-    println("Rows in dataset: " + tweetsDF.count())
-
-    tweetsDF.show()
+      .csv("src/main/resources/data/Countries.csv")
+      //.csv("s3n://spark-project-test/twitter-data/Countries.CSV")
+       */
 
     /**
      * Sentiment Analysis
@@ -165,61 +127,185 @@ object Main {
     import spark.implicits._
 
     // Create FileSystem object from Hadoop Configuration
-    val fs = FileSystem.get(new java.net.URI(s"s3a://spark-project-test"), spark.sparkContext.hadoopConfiguration)
+    val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
     // sentiment dataset path
-    val sentimentPath = "s3n://spark-project-test/twitter-data/Sentiment_Data.parquet"
+        //val sentimentPath = "s3n://spark-project-test/twitter-data/Sentiment_Data.parquet"
+    val sentimentPath = "src/main/resources/data/Sentiment_Data.parquet"
     // This methods returns Boolean (true - if file exists, false - if file doesn't exist
     val fileExists = fs.exists(new Path(sentimentPath))
 
-    val withSentimentDF = if (fileExists)
-      spark.read.schema(sentimentSchema).parquet(sentimentPath)
+    val withSentimentRDD = if (fileExists)
+      spark.read.schema(sentimentSchema).parquet(sentimentPath).as[Tweet].rdd
     else {
-      val sentimentRDD = withSentiment(tweetsDF.select("status_id", "text").as[IDText].rdd).toDF.join(tweetsDF, "status_id")
-      sentimentRDD.write.mode(SaveMode.Overwrite).save(sentimentPath)
-      sentimentRDD.toDF()
+      /**
+       * Data preprocessing
+       */
+
+      // read tweets data as DataFrame and select useful columns
+      val tweetsDF = spark.read
+        .schema(tweetsSchema)
+        .option("header", "true")
+        .option("dateFormat", "yyyy-MM-dd'T'HH:mm:ss'Z'")
+        //.csv("s3n://spark-project-test/twitter-data/2020*.CSV")
+        .csv("src/main/resources/data/2020-03-00_Covid_Tweets.csv")
+        .select( // Select useful columns
+          "status_id",
+          "user_id",
+          "created_at",
+          "screen_name",
+          "text",
+          "source",
+
+          "is_quote",
+          "is_retweet",
+
+          "followers_count",
+          "friends_count",
+          "favourites_count",
+          "retweet_count",
+
+          "country_code",
+          "lang"
+        ).dropDuplicates("status_id") //remove duplicate tweets
+        .where(col("text").isNotNull and
+          col("created_at").isNotNull and // remove nulls
+          col("is_quote") === "false" and // remove quotes [we only keep OC]
+          col("is_retweet") === "false" and // remove retweets
+          (col("country_code") === "US") and
+          (col("lang") === "en")
+        ).select(
+        "status_id",
+        "user_id",
+        "created_at",
+        "screen_name",
+        "text",
+        "source",
+
+        "followers_count",
+        "friends_count",
+        "favourites_count",
+        "retweet_count",
+
+        "country_code",
+        "lang"
+      ).limit(1000)
+
+      tweetsDF.printSchema()
+      println("Rows in dataset: " + tweetsDF.count())
+      tweetsDF.show()
+
+      // apply Sentiment Analysis to data
+      val sentimentDF = withSentiment(tweetsDF.select("status_id", "text").as[IDText].rdd).toDF.join(tweetsDF, "status_id")
+      sentimentDF.write.mode(SaveMode.Overwrite).save(sentimentPath)
+      sentimentDF.as[Tweet].rdd
     }
-    println("Tweets with sentiment -1: " + withSentimentDF.where(col("sentiment") === -1).count())
-    println("Tweets with null lang: " + withSentimentDF.where(col("lang").isNull).count())
-    println("Tweets with null country code: " + withSentimentDF.where(col("country_code").isNull).count())
+
+    println("Tweets with sentiment -1: " + withSentimentRDD.filter(_.sentiment == -1).count())
+    println("Tweets with null lang: " + withSentimentRDD.filter(_.lang == null).count())
+    println("Tweets with null country code: " + withSentimentRDD.filter(_.country_code == null).count())
+
+    val dataRDD = withSentimentRDD.filter(_.sentiment == -1)
+
+    println("Clean data rows: " + dataRDD.count())
+    dataRDD.toDF.show()
 
 
-    val tweetsData = withSentimentDF.drop(col("sentiment") === -1)
+    /*
 
-    println("Clean data rows: " + tweetsData.count())
+    // ordered by followers count
+    println("Ordered by followers count")
+    withSentimentDF.orderBy(desc("followers_count")).show()
+    // ordered by retweet_count
+    println("Ordered by retweet_count")
+    // ordered by retweet_count
+    withSentimentDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("retweet_count")).show
+    // ordered by favourites_count
+    println("Ordered by favourites_count")
+    // ordered by favourites_count
+    withSentimentDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("favourites_count")).show
 
-    /**
-     * 1. Tweets per day, ordered by date
      */
 
-    //val tweetsPerDayDF = ???
+    /**
+     * TODO 1. Tweets per day, ordered by date
+     */
 
     /**
-     * 2. Most popular tweets
+     * TODO 2. Most popular tweets
      */
 
     /**
      * 3. Most active users in the period
      */
 
-    /**
-     * 4. Most common words in tweets [WordCount]
+
+    val increaseCounter: (Int, Tweet) => Int = (n: Int, tweet: Tweet) => n+1
+    val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
+
+    val getLatestTweet: (Tweet, Tweet) => Tweet = (t1: Tweet, t2: Tweet) => if (t1.created_at > t2.created_at) t1 else t2
+
+
+    val keyUserID = dataRDD.map(tweet => (tweet.user_id, tweet))
+    val userNTweets = keyUserID.aggregateByKey(0)(increaseCounter, sumPartitions)
+    val latestTweets = keyUserID.reduceByKey(getLatestTweet)
+    val result = latestTweets.join(userNTweets)
+      .map(row => MostActiveUsers(
+        row._1,
+        row._2._1.screen_name,
+        row._2._1.country_code,
+        row._2._2,
+        row._2._1.followers_count,
+        row._2._1.friends_count
+        )
+      )
+    result.toDF.show()
+
+
+      /*
+            .map(row => MostActivevUsers(
+              row._1,
+              row._2._2.screen_name,
+              row._2._2.country,
+              row.
+            ))
+       */
+
+
+
+    /*
+      dataRDD.groupBy(_.screen_name).map {
+        case (screen_name, tweets) => NamesNTweetsFollowersFriends(
+          screen_name, tweets.map(_.country).head,
+          tweets.size, tweets.map(_.followers_count).max,
+          tweets.map(_.friends_count).max
+        )
+      }.sortBy(_.tweets, ascending = false)
+
      */
 
     /**
-     * 5. Average sentiment per day, ordered by sentiment
+     * TODO 4. Most common words in tweets [WordCount]
      */
 
     /**
-     * 6. Most negative users, ordered by followers_count and number of tweets
+     * TODO 5. Average sentiment per day, ordered by sentiment
      */
 
     /**
-     * 7. Most positive users, ordered by followers_count and number of tweets
+     * TODO 6. Most negative users, ordered by followers_count and number of tweets
+     */
+
+    /**
+     * TODO 7. Most positive users, ordered by followers_count and number of tweets
+     */
+
+    /**
+     * TODO change country_code with country by joining tweets and countries DataFrames
      */
 
 
     // change country_code with country by joining tweets and countries DataFrames
-    //tweetsDF.join(countriesDF, tweetsDF.col("country_code") === countriesDF.col("country_code")).drop("country_code").cache()
+    //tweetsDF.join(countriesDF, "country_code").drop("country_code").cache()
     //.join(countriesDF, "country_code").drop("country_code")
 /*
     /**
@@ -286,23 +372,6 @@ object Main {
         println(withSentimentDF.count())
         withSentimentDF.show()
 
-        /**
-         * working with DF
-         */
-        // ordered by followers count
-        println("Ordered by followers count")
-        withSentimentDF.orderBy(desc("followers_count")).show()
-        // ordered by retweet_count
-        println("Ordered by retweet_count")
-        // most active users
-        withSentimentDF.groupBy("screen_name").agg(count("text").as("nTweets")).orderBy(desc("nTweets")).show
-        // ordered by retweet_count
-        withSentimentDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("retweet_count")).show
-        // ordered by favourites_count
-        println("Ordered by favourites_count")
-        // ordered by favourites_count
-        withSentimentDF.select("screen_name", "text", "retweet_count", "favourites_count").orderBy(desc("favourites_count")).show
-
 
         /**
          * working with RDD
@@ -310,10 +379,6 @@ object Main {
         // tweetsDF -> withSentimentRDD
         import spark.implicits._
         val withSentimentRDD = withSentimentDF.as[Tweet].rdd.cache()
-
-        // show most active users
-        println("Most active users")
-        namesNTweetsFollowersFriends(withSentimentRDD).toDF.show
 
         // show countries with respective average sentiment
         println("Country and average sentiment")
