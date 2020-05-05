@@ -231,7 +231,6 @@ object Main {
       ).sortBy(_.nTweets, ascending =false).toDF.show()
 
 
-
       /*
             .map(row => MostActiveUsers(
               row._1,
