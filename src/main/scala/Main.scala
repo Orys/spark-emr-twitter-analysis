@@ -35,6 +35,8 @@ object Main {
 
   case class MostActiveUsers(user_id: String, screen_name: String, nTweets: Int, followers: Int)
 
+  case class TweetsPerDay(created_at: String, tot_tweets: Int, avg_sentiment: Double)
+
 
   def main(args: Array[String]) {
 
@@ -207,6 +209,12 @@ object Main {
     /**
      * TODO 1. Tweets per day, ordered by date
      */
+    val tweetsPerDay = dataRDD.map(tweet => (tweet.created_at, (1, tweet.sentiment)))
+      .reduceByKey((v1, v2) => (v1._1 + v2._1, v1._2 + v2._2))
+      .map(tweet => TweetsPerDay(tweet._1, tweet._2._1, tweet._2._2.toDouble / tweet._2._1))
+      .sortBy(_.created_at, ascending = true)
+
+    tweetsPerDay.toDF.show()
 
     /**
      * TODO 2. Most popular tweets
