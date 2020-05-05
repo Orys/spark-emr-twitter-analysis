@@ -38,6 +38,8 @@ object Main {
   case class HashtagOfTheDay(date: String, hashtag: String, n_tweets: Int)
   case class MostUsedHashtags(hashtag: String, n_tweets: Int)
   case class MostTaggedUsers(tag: String, n_tweets: Int)
+  case class SortedByAvgSentiment(screen_name: String, avg_sentiment: Double, n_tweets: Int)
+
 
 
 
@@ -214,7 +216,7 @@ object Main {
      * 1. Tweets per day and average sentiment, ordered by date
      */
 
-    println("Tweets per day and average sentiment, ordered by date")
+    println("1. Tweets per day and average sentiment, ordered by date")
     val tweetsPerDay = dataRDD.map(tweet => (tweet.created_at, (1, tweet.sentiment)))
       .reduceByKey((v1, v2) => (v1._1 + v2._1, v1._2 + v2._2))
       .map(tweet => TweetsPerDay(tweet._1, tweet._2._1, tweet._2._2.toDouble / tweet._2._1))
@@ -226,7 +228,7 @@ object Main {
      * 2. Most popular tweets
      */
 
-    println("Most popular tweets")
+    println("2. Most popular tweets")
     dataRDD.sortBy(_.retweet_count).toDF.show()
 
 
@@ -234,7 +236,7 @@ object Main {
      * 3. Most active users in the period
      */
 
-    println("Most active users")
+    println("3. Most active users")
 
     val getLatestTweet: (WithSentiment, WithSentiment) => WithSentiment = (t1: WithSentiment, t2: WithSentiment) =>
       if (t1.created_at > t2.created_at) t1 else t2
@@ -255,7 +257,7 @@ object Main {
      * 4. Most common words in tweets [WordCount]
      */
 
-    println("Most common words in tweets")
+    println("4. Most common words in tweets")
     val stopwordsRDD = sc.textFile("src/main/resources/stopwords.txt").collect.toList
 
     val wordsRDD = dataRDD.map(_.text.toLowerCase())
@@ -272,7 +274,7 @@ object Main {
      * 5. Most used hashtags
      * */
 
-    println("Most used hashtags")
+    println("5. Most used hashtags")
     val hashtagsRDD = wordsRDD
       .filter(_._1.startsWith("#"))
         .map(row => MostUsedHashtags(row._1, row._2))
@@ -282,7 +284,7 @@ object Main {
      * 6. Most tagged users
      * */
 
-    println("Most tagged users")
+    println("6. Most tagged users")
     val tagsRDD = wordsRDD
       .filter(_._1.startsWith("@"))
       .map(row => MostTaggedUsers(row._1, row._2))
@@ -292,7 +294,7 @@ object Main {
      * 7. Most used hashtag of the day
      */
 
-    println("Most used hashtag of the day")
+    println("7. Most used hashtag of the day")
     val hashtagOfTheDayRDD = dataRDD.map(tweet => (tweet.created_at, tweet.text))
       .flatMapValues(text => text.split(" "))
       .filter(_._2.startsWith("#"))
@@ -305,12 +307,31 @@ object Main {
     hashtagOfTheDayRDD.toDF.show
 
     /**
-     * TODO Most negative users, ordered by followers_count and number of tweets
+     * 8. Most negative users
      */
 
+    println("8. Most negative users")
+    val sortedByAvgSentiment = dataRDD.map(row => (row.user_id, 1))
+      .reduceByKey(_+_)
+      .join(dataRDD
+        .map(row => (row.user_id, row.sentiment))
+        .reduceByKey(_+_))
+      .map(row => SortedByAvgSentiment(
+        row._1,
+        row._2._2.toDouble/row._2._1,
+        row._2._1)
+      )
+      .filter(_.n_tweets > 8)
+
+    sortedByAvgSentiment.sortBy(_.avg_sentiment, ascending = true).toDF.show
+
     /**
-     * TODO Most positive users, ordered by followers_count and number of tweets
+     * 9. Most positive users
      */
+
+    println("9. Most positive users")
+    sortedByAvgSentiment.sortBy(_.avg_sentiment, ascending = false).toDF.show
+
 
     /**
      * TODO change country_code with country by joining tweets and countries DataFrames
