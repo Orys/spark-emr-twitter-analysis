@@ -33,7 +33,7 @@ object Main {
                     lang: String
                   )
 
-  case class MostActiveUsers(user_id: String, screen_name: String, country_code: String, tweets: Int, followers: Int, friends: Int)
+  case class MostActiveUsers(user_id: String, screen_name: String, nTweets: Int, followers: Int)
 
 
   def main(args: Array[String]) {
@@ -178,8 +178,7 @@ object Main {
       sentimentRDD
     }
 
-    val dataRDD = withSentimentRDD.filter(_.sentiment == -1).cache()
-    println("Tweets with sentiment -1: " + dataRDD.count())
+    val dataRDD = withSentimentRDD.filter(_.sentiment != -1).cache()
 
     println("Clean data rows: " + dataRDD.count())
     dataRDD.toDF.show()
@@ -213,34 +212,28 @@ object Main {
      * 3. Most active users in the period
      */
 
-      /*
-
-    val increaseCounter: (Int, Tweet) => Int = (n: Int, tweet: Tweet) => n+1
+    val increaseCounter: (Int, WithSentiment) => Int = (n: Int, tweet: WithSentiment) => n+1
     val sumPartitions: (Int, Int) => Int = (n1: Int, n2: Int) => n1+n2
 
-    val getLatestTweet: (Tweet, Tweet) => Tweet = (t1: Tweet, t2: Tweet) => if (t1.created_at > t2.created_at) t1 else t2
-
+    val getLatestTweet: (WithSentiment, WithSentiment) => WithSentiment = (t1: WithSentiment, t2: WithSentiment) =>
+      if (t1.created_at > t2.created_at) t1 else t2
 
     val keyUserID = dataRDD.map(tweet => (tweet.user_id, tweet))
-    val userNTweets = keyUserID.aggregateByKey(0)(increaseCounter, sumPartitions)
-    val latestTweets = keyUserID.reduceByKey(getLatestTweet)
-    val result = latestTweets.join(userNTweets)
+    keyUserID
+      .reduceByKey(getLatestTweet)
+      .join(keyUserID.aggregateByKey(0)(increaseCounter, sumPartitions))
       .map(row => MostActiveUsers(
         row._1,
         row._2._1.screen_name,
-        row._2._1.country_code,
         row._2._2,
-        row._2._1.followers_count,
-        row._2._1.friends_count
+        row._2._1.followers_count
         )
-      )
-    result.toDF.show()
+      ).sortBy(_.nTweets, ascending =false).toDF.show()
 
-       */
 
 
       /*
-            .map(row => MostActivevUsers(
+            .map(row => MostActiveUsers(
               row._1,
               row._2._2.screen_name,
               row._2._2.country,
