@@ -1,7 +1,8 @@
-import SentimentAnalyzer._
+import SentimentAnalyzer.withSentiment
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 
 
@@ -47,7 +48,7 @@ object Main {
   case class MostActiveUsers(user_name: String, n_tweets: Int)
 
   case class MostPopularTweets(tweet_id: String, user_name: String, text: String, retweets: Int, likes: Int)
-  case class MostPopularUsers(user_name: String, avg_retweets: Int, avg_like: Int)
+  case class MostPopularUsers(user_name: String, avg_retweets: Int, avg_likes: Int)
 
   case class WordCount(word: String, count: Int)
   case class HashtagOfTheDay(date: String, hashtag: String, n_tweets: Int)
@@ -55,6 +56,8 @@ object Main {
   case class MostTaggedUsers(tag: String, n_tweets: Int)
 
   case class SortedByAvgSentiment(user_name: String, avg_sentiment: Double, n_tweets: Int)
+
+  case class InfluentialSentiments(sentiment: Int, ratio_retweets_followers: Double, ratio_likes_followers: Double)
 
 
   /**
@@ -242,7 +245,7 @@ object Main {
     println("3a. Most popular users - sorted by retweets")
     mostPopularUsers.sortBy(_.avg_retweets, ascending = false).toDF.show()
     println("3b. Most popular users - sorted by likes")
-    mostPopularUsers.sortBy(_.avg_retweets, ascending = false).toDF.show()
+    mostPopularUsers.sortBy(_.avg_likes, ascending = false).toDF.show()
 
     /**
      * 4. Most active users in the period
@@ -267,7 +270,7 @@ object Main {
     val wordsRDD = withSentimentRDD.map(_.text.toLowerCase())
       .flatMap(_.split(" "))
       .map(word => (word.replaceAll("[^a-zA-Z#@0-9]", ""), 1))
-      .filter(row => !(row._1 == ""))
+      .filter(row => !(row._1 == " "))
       .reduceByKey((w1,w2) => w1+w2)
       .filter(row => !stopwordsRDD.contains(row._1))
       .map(row => WordCount(row._1, row._2))
@@ -284,7 +287,9 @@ object Main {
     val hashtagsRDD = wordsRDD
       .filter(_.word.startsWith("#"))
       .filter(_.word != "#")
-        .map(row => MostUsedHashtags(row.word, row.count))
+      .map(row => MostUsedHashtags(row.word, row.count))
+      .sortBy(_.n_tweets, ascending = false)
+
     hashtagsRDD.toDF.show()
 
     /**
@@ -296,6 +301,8 @@ object Main {
       .filter(_.word.startsWith("@"))
       .filter(_.word != "@")
       .map(row => MostTaggedUsers(row.word, row.count))
+      .sortBy(_.n_tweets, ascending = false)
+
     tagsRDD.toDF.show()
 
     /**
@@ -312,6 +319,7 @@ object Main {
       .reduceByKey((el1, el2) => if (el1._2>el2._2) el1 else el2)
       .sortByKey(ascending = true)
       .map(row => HashtagOfTheDay(row._1, row._2._1, row._2._2))
+
     hashtagOfTheDayRDD.toDF.show
 
     /**
@@ -336,8 +344,17 @@ object Main {
     sortedByAvgSentiment.sortBy(_.avg_sentiment, ascending = false).toDF.show
 
     /**
-     * TODO 10. Sentiments with ratios followers/favourites and followers/retweets
+     * 10. Sentiments with ratios retweets/followers and likes/followers
      */
+
+    println("10. Sentiments with ratios retweets/followers and likes/followers")
+    val influentialSenstimentsRDD = withSentimentRDD
+      .map(row => (row.sentiment, (row.followers_count, row.retweet_count, row.favourites_count)))
+      .reduceByKey((el1, el2) => (el1._1 + el2._1, el1._2 + el2._2, el1._3 + el2._3))
+      .sortByKey(ascending = true)
+      .map(row => InfluentialSentiments(row._1, row._2._2.toDouble/row._2._1, row._2._3.toDouble/row._2._1))
+
+    influentialSenstimentsRDD.toDF.show
 
   }
 }
