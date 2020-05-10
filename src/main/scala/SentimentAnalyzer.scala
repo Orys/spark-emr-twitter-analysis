@@ -1,6 +1,6 @@
 import java.util.Properties
 
-import Main.{Tweet, WithSentiment}
+import Main.{Tweet, TweetWithSentiment}
 import edu.stanford.nlp.ling.CoreAnnotations
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations
 import edu.stanford.nlp.pipeline.{Annotation, StanfordCoreNLP}
@@ -24,8 +24,8 @@ object SentimentAnalyzer {
    * add column with Sentiment Analysis results to data
    */
 
-  def withSentiment(dataRDD: RDD[Tweet]): RDD[WithSentiment] = dataRDD.map(
-    tweet => WithSentiment(
+  def withSentiment(dataRDD: RDD[Tweet]): RDD[TweetWithSentiment] = dataRDD.map(
+    tweet => TweetWithSentiment(
       tweet.status_id,
       tweet.user_id,
       tweet.created_at,
