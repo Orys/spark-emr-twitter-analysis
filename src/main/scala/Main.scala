@@ -49,7 +49,7 @@ object Main {
 
   case class MostPopularTweets(tweet_id: String, user_name: String, text: String, retweets: Int, likes: Int)
 
-  case class MostPopularUsers(user_name: String, avg_retweets: Int, avg_likes: Int)
+  case class MostPopularUsers(user_name: String, avg_retweets: Int, avg_likes: Int, followers: Int)
 
   case class WordCount(word: String, count: Int)
 
@@ -146,9 +146,9 @@ object Main {
     // if data with sentiment file already exists, read it, else create it and return data with sentiment
     val withSentimentRDD =
       if (fs.exists(new Path(sentimentPath)))
-      // read data with sentiment
-      spark.read.schema(sentimentSchema).option("header", "true").csv(sentimentPath).as[WithSentiment].rdd
-        else {
+        // read data with sentiment
+        spark.read.schema(sentimentSchema).option("header", "true").csv(sentimentPath).as[WithSentiment].rdd
+      else {
         /**
          * Data preprocessing
          */
@@ -242,12 +242,12 @@ object Main {
     mostPopularTweets.sortBy(_.likes, ascending = false).toDF.show()
 
     /**
-     * 3. Most popular users
-     */
+    * 3. Most popular users
+    */
 
-    val mostPopularUsers = withSentimentRDD.map(row => (row.screen_name, (row.retweet_count, row.favourites_count)))
-      .reduceByKey((el1, el2) => (el1._1 + el2._1, el1._2 + el2._2))
-      .map(row => MostPopularUsers(row._1, row._2._1, row._2._2))
+    val mostPopularUsers = withSentimentRDD.map(row => (row.screen_name, (row.retweet_count, row.favourites_count, row.followers_count, 1)))
+      .reduceByKey((el1, el2) => if (el1._3 > el2._3) (el1._1 + el2._1, el1._2 + el2._2, el1._3, el1._4 + el2._4) else (el1._1 + el2._1, el1._2 + el2._2, el2._3, el1._4 + el2._4))
+      .map(row => MostPopularUsers(row._1, (row._2._1 / row._2._4), (row._2._2 / row._2._4), row._2._3))
 
     println("3a. Most popular users - sorted by retweets")
     mostPopularUsers.sortBy(_.avg_retweets, ascending = false).toDF.show()
@@ -255,8 +255,8 @@ object Main {
     mostPopularUsers.sortBy(_.avg_likes, ascending = false).toDF.show()
 
     /**
-     * 4. Most active users in the period and obtained followers
-     */
+    * 4. Most active users in the period and obtained followers
+    */
 
 
     println("4a. Most active users")
@@ -270,10 +270,10 @@ object Main {
     println("4b. Users who obtained more followers")
     val tweetsDateFollowers = withSentimentRDD.map(tweet => (tweet.screen_name, (tweet.created_at ,tweet.followers_count)))
 
-    val firstTweets = tweetsDateFollowers.reduceByKey((el1, el2) => if (el1._1 < el2._1) el1 else el2).map(row => (row._1, row._2._2))
-    val lastTweets = tweetsDateFollowers.reduceByKey((el1, el2) => if (el1._1 > el2._1) el1 else el2).map(row => (row._1, row._2._2))
+    val firstTweets = tweetsDateFollowers.reduceByKey((el1, el2) => if (el1._1 < el2._1) el1 else el2)
+    val lastTweets = tweetsDateFollowers.reduceByKey((el1, el2) => if (el1._1 > el2._1) el1 else el2)
 
-    val mostRewardedUsers = firstTweets.join(lastTweets).map(row => MostRewardedUsers(row._1, row._2._2 - row._2._1)).sortBy(_.obtained_followers, ascending = false)
+    val mostRewardedUsers = firstTweets.join(lastTweets).map(row => MostRewardedUsers(row._1, row._2._2._2 - row._2._1._2)).sortBy(_.obtained_followers, ascending = false)
     mostRewardedUsers.toDF.show()
 
 
